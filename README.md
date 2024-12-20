@@ -9,6 +9,7 @@ This project focuses on transforming the senior health care experience through d
 - **`template.html`**: HTML template used by the Python script for generating dynamic reports.
 - **`sample_report_1.html`**: Example of a personalized wellness report.
 - **`sample_report_2.html`**: Another example showcasing the functionality and design of the reports.
+- **'demographics.Rmd'**: R script for exploring Singapore's ageing demographics
 
 ## **Getting Started**
 ### **Prerequisites**
