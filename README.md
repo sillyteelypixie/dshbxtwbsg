@@ -10,6 +10,7 @@ This project focuses on transforming the senior health care experience through d
 - **`sample_report_1.html`**: Example of a personalized wellness report.
 - **`sample_report_2.html`**: Another example showcasing the functionality and design of the reports.
 - **`demographics.Rmd`**: R script for exploring Singapore's ageing demographics
+- **`610710_functions.R`**: Functions supporting R scripts for data analysis and visualization.
 
 ## **Getting Started**
 ### **Prerequisites**
