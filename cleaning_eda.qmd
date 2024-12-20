@@ -1,0 +1,802 @@
+---
+title: "Cleaning and EDA"
+format: html
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+## Setting environment
+
+```{r packages}
+#| message: false
+#| warning: false
+library(kableExtra, exclude = "group_rows") # you may or may not use this one!
+library(tidyverse) # for general data wrangling
+library(tidymodels) # for modeling
+library(janitor, include.only = "clean_names")
+library(readxl)
+library(corrplot)
+
+```
+
+```{r source}
+#| message: false
+#| warning: false
+devtools::source_url("https://github.com/jjcurtin/lab_support/blob/main/fun_eda.R?raw=true")
+devtools::source_url("https://github.com/jjcurtin/lab_support/blob/main/fun_plots.R?raw=true")
+```
+
+## Read and set up dataframe
+
+```{r path}
+path_data <- "/Users/krystle/Documents/dshb_capstone/data"
+```
+
+```{r load-data}
+d23 <- read_excel(here::here(path_data, "2023_data.xlsx")) |> 
+  clean_names("snake") |> 
+  mutate(across(where(is.character), factor)) |>
+  glimpse()
+
+d23 |> 
+  skim_some()
+
+d23 |> 
+  skim_all()
+
+```
+
+```{r}
+# Identify rows with all NA values except for shapesg_id
+d23_na_rows <- d23 |>
+  filter(rowSums(is.na(d23[, setdiff(names(d23), "shapesg_id")])) == (ncol(d23) - 1))
+
+# Remove NA rows
+d23 <- d23 |>
+  filter(!shapesg_id %in% d23_na_rows$shapesg_id)
+
+```
+
+```{r}
+# Rename some columns for clarity
+d23 <- d23 |> 
+  rename(
+    gds1_tot = gds1,
+    moca1_tot = mo_ca1,
+  )
+
+```
+
+## Demographics
+### Age
+```{r}
+d23 <- d23 |> 
+  mutate(age_group = cut(
+    age,
+    breaks = seq(60, max(age, na.rm = TRUE) + 5, by = 5), # Breakpoints
+    right = FALSE,
+    labels = paste(
+      seq(60, max(age, na.rm = TRUE), by = 5),          # Start of intervals
+      seq(64, max(age, na.rm = TRUE) + 4, by = 5),      # End of intervals
+      sep = "-"
+    )
+  ))
+
+age_graph <- d23 |> 
+  count(age_group) |> 
+  mutate(proportion = n / sum(n)) |> 
+  ggplot(aes(x = age_group, y = proportion)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Proportion of Individuals by Age Group",
+    x = "Age Group",
+    y = "Proportion"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),  # Center-align the title
+    panel.background = element_blank(),                # Remove panel background
+    panel.grid.major = element_blank(),                # Remove major grid lines
+    panel.grid.minor = element_blank(),                # Remove minor grid lines
+    axis.line = element_line(color = "black")          # Add axis lines for clarity
+  )
+
+age_graph
+
+ggsave("~/Documents/dshb_capstone/graphs/age.pdf", plot = age_graph, width = 8, height = 6)
+
+```
+
+### Gender
+```{r}
+
+d23 <- d23 |> 
+  mutate(gender = case_when(
+    gender == 1 ~ "Male",
+    gender == 2 ~ "Female",
+    
+  ))
+
+gender_graph <- d23 |> 
+  count(gender) |> 
+  mutate(proportion = n / sum(n)) |> 
+  ggplot(aes(x = gender, y = proportion, fill = gender)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(title = "Proportion of Individuals by Age Group", x = "Gender", y = "Proportion") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Male" = "blue", "Female" = "pink")) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),  # Center-align the title
+    panel.background = element_blank(),                # Remove panel background
+    panel.grid.major = element_blank(),                # Remove major grid lines
+    panel.grid.minor = element_blank(),                # Remove minor grid lines
+    axis.line = element_line(color = "black")          # Add axis lines for clarity
+  )
+  
+gender_graph
+ggsave("~/Documents/dshb_capstone/graphs/gender.pdf", plot = gender_graph, width = 8, height = 6)
+```
+
+### Income
+```{r}
+d23 <- d23 |> 
+  mutate(inc_amt = case_when(
+    inc_amt == 1 ~ "<500",
+    inc_amt == 2 ~ "500-750",
+    inc_amt == 3 ~ "751-1000",
+    inc_amt == 4 ~ ">1000",
+   ) |> 
+  factor(levels = c("<500", "500-750", "751-1000", ">1000")))  # Set desired order
+
+d23 |> 
+  count(inc_amt) |> 
+  mutate(proportion = n / sum(n)) |> 
+  ggplot(aes(x = inc_amt, y = proportion, fill = inc_amt)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Income Proportion per Month",
+    x = "Income Range",
+    y = "Proportion"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 16)) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),  # Center-align the title
+    panel.background = element_blank(),                # Remove panel background
+    panel.grid.major = element_blank(),                # Remove major grid lines
+    panel.grid.minor = element_blank(),                # Remove minor grid lines
+    axis.line = element_line(color = "black")          # Add axis lines for clarity
+  )
+
+
+
+```
+
+### Educational level
+```{r}
+d23 <- d23 |> 
+  mutate(edu_level = case_when(
+    edu_level == 0 ~ "No Formal Education",
+    edu_level == 1 ~ "Primary",
+    edu_level == 2 ~ "Secondary",
+    edu_level == 3 ~ "Pre-University",
+    edu_level == 4 ~ "University"
+  ) |> 
+  factor(levels = c("No Formal Education", "Primary", "Secondary", "Pre-University", "University")))
+
+education_graph <- d23 |> 
+  count(edu_level) |> 
+  mutate(proportion = n / sum(n)) |> 
+  ggplot(aes(x = edu_level, y = proportion, fill = edu_level)) +
+  geom_bar(stat = "identity", color = "black") +
+  # geom_text(aes(label = scales::percent(proportion, accuracy = 0.1)), vjust = -0.5) +  # Add percentage labels
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Proportion of Individuals by Education",
+    x = "Education Level",
+    y = "Proportion"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),  # Center-align the title
+    panel.background = element_blank(),                # Remove panel background
+    panel.grid.major = element_blank(),                # Remove major grid lines
+    panel.grid.minor = element_blank(),                # Remove minor grid lines
+    axis.line = element_line(color = "black")          # Add axis lines for clarity
+  )
+
+education_graph
+ggsave("~/Documents/dshb_capstone/graphs/education.pdf", plot = education_graph, width = 8, height = 6)
+```
+
+### Living arrangement
+```{r}
+d23 <- d23 |> 
+  mutate(living_arr = case_when(
+    living_arr == 1 ~ "Alone",
+    living_arr == 2 ~ "Spouse",
+    living_arr == 3 ~ "Children",
+    living_arr == 4 ~ "Spouse & Children",
+    living_arr == 5 ~ "Other Family Members",
+    living_arr == 6 ~ "Unrelated Person"
+  ))
+
+livingarr_graph <- d23 |> 
+  count(living_arr) |> 
+  mutate(proportion = n / sum(n)) |> 
+  ggplot(aes(x = reorder(living_arr, proportion), y = proportion, fill = living_arr)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Proportion of Individuals by Living Arrangements",
+    x = "Living Arrangement",
+    y = "Proportion"
+  ) +
+  # coord_flip() +  # Flip for better readability
+  theme_minimal() +
+  theme(legend.position = "none") +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),  # Center-align the title
+    panel.background = element_blank(),                # Remove panel background
+    panel.grid.major = element_blank(),                # Remove major grid lines
+    panel.grid.minor = element_blank(),                # Remove minor grid lines
+    axis.line = element_line(color = "black")          # Add axis lines for clarity
+  )
+
+livingarr_graph
+ggsave("~/Documents/dshb_capstone/graphs/living.pdf", plot = livingarr_graph, width = 8, height = 6)
+```
+## Creating composite scores
+
+Scales I am interested in are : 
+- GDS 
+- MOCA 
+- Dietary habits 
+- Senior fitness test 
+- Sleep 
+- Brief resilient coping 
+- Health screening/ vaccinations  
+- Number of medical conditions 
+
+### Medical conditions 
+```{r}
+d23 <- d23 |>
+  mutate(
+    # Assign weights based on condition impact
+    medical1_01w = medical1_01 * 2, # hypertension
+    medical1_03w = medical1_03 * 2, #diabetes
+    medical1_04w = medical1_04 * 2, # heart problems
+    medical1_12w = medical1_12 * 2, # stroke
+    medical1_13w = medical1_13 * 2, # cancer
+    medical1_07w = medical1_07 * 2, # kidney
+    
+    medical1_02w = medical1_02 * 1.5, # cholestrol
+    medical1_05w = medical1_05 * 1.5, # pulmonary problems
+    medical1_06w = medical1_06 * 1.5, # liver/ gall
+    medical1_08w = medical1_08 * 1.5, # endocrine
+    medical1_09w = medical1_09 * 1.5, # eye problems
+    medical1_10w = medical1_10 * 1.5, # bone/ joint
+    medical1_14w = medical1_14 * 1.5, # depression
+    
+    medical1_11w = medical1_11 * 1, # urinary
+    medical1_15w = medical1_15 * 1, # falls/ missed falls
+    medical1_16w = medical1_16 * 1, # major surgery
+    medical1_17w = medical1_17 * 1, # others
+    # Calculate the total weighted score
+    medical1_burden = rowSums(across(medical1_01w:medical1_17w), na.rm = TRUE),
+    
+# Categorize based on weighted score
+medical1_burden_cat = case_when(
+  medical1_burden <= 3 ~ "low_health_burden",
+  medical1_burden > 3 & medical1_burden <= 6 ~ "moderate_health_burden",
+  medical1_burden > 6 & medical1_burden <= 9 ~ "high_health_burden",
+  medical1_burden> 9 ~ "very_high_health_burden",
+  TRUE ~ NA_character_
+  ))
+
+
+```
+Assigning weights to all 17 conditions based on their general impact on
+elderly well-being, using the following groups:
+
+- High Impact Conditions (weight = 2): These are conditions with
+significant chronic impact, often requiring intensive management or
+having a strong influence on morbidity; conditions are more severe and
+likely to have a greater effect on overall well-being. 
+- Moderate Impact Conditions (weight = 1.5): These conditions can affect day-to-day
+functioning and require regular management; conditions may still impact
+quality of life but generally have a slightly lesser effect than
+high-impact conditions. 
+- Low Impact or Acute Conditions (weight = 1): These are conditions that might be 
+episodic or less likely to severely impact daily life but still contribute to 
+overall health burden; conditions, while relevant, have a lower overall impact
+
+### Health screenings
+```{r}
+# Calculate and categorize health screening scores by gender
+
+d23 <- d23 |>
+  # Convert screen1_11 and screen1_12 from factor -> character, handle "NA" strings, then numeric
+  mutate(
+    screen1_11 = as.character(screen1_11),
+    screen1_11 = na_if(screen1_11, "NA"),
+    screen1_11 = as.numeric(screen1_11),
+
+    screen1_12 = as.character(screen1_12),
+    screen1_12 = na_if(screen1_12, "NA"),
+    screen1_12 = as.numeric(screen1_12)
+  ) |>
+  # Ensure that all screen1_* columns are numeric
+  mutate(
+    across(starts_with("screen1_"), as.numeric)
+  ) |>
+  # Calculate totals, norms, and categories
+  mutate(
+    screen1_tot = case_when(
+      gender == "Male" ~ rowSums(across(matches("^screen1_0[1-9]$|^screen1_10$")), na.rm = TRUE),
+      gender == "Female" ~ rowSums(across(matches("^screen1_0[1-9]$|^screen1_1[0-2]$")), na.rm = TRUE)
+    ),
+    screen1_norm = case_when(
+      gender == "Male" ~ screen1_tot / 10,
+      gender == "Female" ~ screen1_tot / 12
+    ),
+    screen1_cat = case_when(
+      screen1_norm >= 0.8 ~ "engaged",
+      screen1_norm >= 0.5 & screen1_norm < 0.8 ~ "partially_engaged",
+      screen1_norm < 0.5 ~ "not_engaged",
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+### Instrumental activities of daily living (IADL)
+```{r}
+# For iadl
+d23 <- d23 |>
+  mutate(iadl1_tot = rowSums(across(iadl1_01:iadl1_08), na.rm = TRUE))
+```
+
+### Geriatric sleep questionnaire (GSQ)
+```{r}
+# For dsq
+d23 <- d23 |>
+  mutate(gsq1_tot = rowSums(across(gsq1_01:gsq1_06), na.rm = TRUE))
+
+d23 <- d23 |>
+  mutate(gsq1_category = case_when(
+    gsq1_tot <= 13 ~ "good",        # Lower scores suggest good sleep quality
+    gsq1_tot > 13 & gsq1_tot <= 16 ~ "moderate",  # Mid-range scores suggest moderate sleep quality
+    gsq1_tot > 16 ~ "poor",         # Higher scores indicate poorer sleep quality
+    TRUE ~ NA_character_           # Handles any missing or unexpected values
+  ))
+```
+
+### Coping
+```{r}
+# For coping
+d23 <- d23 |>
+  mutate(cope1_tot = rowSums(across(cope1_01:cope1_04), na.rm = TRUE))
+
+d23 <- d23 |>
+  mutate(
+    # Categorize `cope1_tot` based on resilience levels 
+    cope1_cat = case_when(
+      cope1_tot >= 4 & cope1_tot <= 13 ~ "emerging_resilience",
+      cope1_tot >= 14 & cope1_tot <= 16 ~ "moderate_resilience",
+      cope1_tot >= 17 & cope1_tot <= 20 ~ "strong_resilience",
+      TRUE ~ NA_character_  # In case of any values outside the expected range
+    )
+  )
+```
+
+### Montreal cognitive assessment (MOCA)
+```{r}
+d23 <- d23 |>
+  mutate(moca1_category = case_when(
+    moca1_tot >= 26 ~ "normal",                     # 26 and above is considered normal
+    moca1_tot >= 18 & moca1_tot <= 25 ~ "mild_impairment",    # 18-25 indicates mild impairment
+    moca1_tot >= 10 & moca1_tot <= 17 ~ "moderate_impairment", # 10-17 indicates moderate impairment
+    moca1_tot >= 0 & moca1_tot <= 9 ~ "severe_impairment",    # 0-9 indicates severe impairment
+    TRUE ~ NA_character_                              # Handles any missing or unexpected values
+  ))
+
+```
+
+### Geriatric depression scale (GDS)
+```{r}
+d23 <- d23 |>
+  mutate(gds1_category = case_when(
+    gds1_tot <= 5 ~ "normal",                 # 0–5 is considered Normal
+    gds1_tot > 5 & gds1_tot <= 10 ~ "mild_depression", # 6–10 indicates Mild Depression
+    gds1_tot > 10 ~ "moderate_severe_depression",    # 11–15 suggests Moderate to Severe Depression
+    TRUE ~ NA_character_                       # Handles any missing or unexpected values
+  ))
+
+```
+
+### BMI
+```{r}
+# Categorize BMI
+d23 <- d23 |>
+  mutate(
+    bmi1_cat = case_when(
+      bmi1 < 18.5 ~ "underweight",
+      bmi1 >= 18.5 & bmi1 <= 24.9 ~ "normal_weight",
+      bmi1 >= 25 & bmi1 <= 29.9 ~ "overweight",
+      bmi1 >= 30 ~ "obesity",
+      TRUE ~ NA_character_
+    )
+  )
+```
+
+### WHR
+```{r}
+# Categorize Waist-Hip Ratio based on gender (1 = male, 2 = female)
+d23 <- d23 |>
+  mutate(
+    whr1_cat = case_when(
+      gender == "Male" & whr1 > 0.9 ~ "high_risk",     # Males with WHR > 0.9
+      gender == "Female" & whr1 > 0.85 ~ "high_risk",    # Females with WHR > 0.85
+      TRUE ~ "low_risk"
+    )
+  )
+```
+
+### Activity levels
+```{r}
+# aerobic activity
+d23 <- d23 |> 
+  mutate(
+    tot_aerobic1_min = aerobic1_mod1 + (aerobic1_hig1 * 2)  # High intensity counts as double
+  )
+
+d23 <- d23 |> 
+  mutate(
+    aerobic1_adherence = case_when(
+      tot_aerobic1_min >= 150 & tot_aerobic1_min <= 300 ~ "Meets Recommendation",
+      tot_aerobic1_min > 300 ~ "Exceeds Recommendation",
+      TRUE ~ "Does Not Meet Recommendation"
+    )
+  )
+
+# resistance
+d23 <- d23 |> 
+  mutate(
+    tot_resistance1_days = resist1_mod + resist1_hig
+  )
+
+d23 <- d23 |> 
+  mutate(
+    resistance1_adherence = case_when(
+      tot_resistance1_days >= 2 ~ "Meets Recommendation",
+      TRUE ~ "Does Not Meet Recommendation"
+    )
+  )
+
+# neuromotor
+d23 <- d23 |> 
+  mutate(
+    tot_neuromotor1_days = n_motor1_mod2 + n_motor1_hig2
+  )
+
+
+d23 <- d23 |> 
+  mutate(
+    neuromotor1_adherence = case_when(
+      tot_neuromotor1_days >= 3 ~ "Meets Recommendation",
+      TRUE ~ "Does Not Meet Recommendation"
+    )
+  )
+
+```
+
+```{r}
+adherence1_data <- d23 |> 
+  summarise(
+    Recommendation = c("Aerobic", "Resistance", "Neuromotor"),
+    Adherence = c(
+      mean(aerobic1_adherence == "Meets Recommendation", na.rm = TRUE),
+      mean(resistance1_adherence == "Meets Recommendation", na.rm = TRUE),
+      mean(neuromotor1_adherence == "Meets Recommendation", na.rm = TRUE)
+    )
+  )
+
+ggplot(adherence1_data, aes(x = Recommendation, y = Adherence)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    title = "Adherence to Physical Activity Guidelines",
+    x = "Recommendation",
+    y = "Adherence Rate"
+  ) +
+  theme_minimal()
+```
+```{r}
+d23 |> 
+  group_by(gender) |> 
+  summarise(aerobic_adherence_rate = mean(aerobic1_adherence == "Meets Recommendation", na.rm = TRUE))
+
+```
+
+### UCLA 3-item loneliness scale
+```{r}
+d23 <- d23 |> 
+  mutate(
+    # Transform ssn1_10, ssn1_11, ssn1_12 into ucla1_1, ucla1_2, ucla1_3
+    ucla1_1 = case_when(
+      ssn1_10 == 0 ~ 1,
+      ssn1_10 == 1 ~ 2,
+      ssn1_10 == 2 ~ 3,
+      TRUE ~ NA_real_
+    ),
+    ucla1_2 = case_when(
+      ssn1_11 == 0 ~ 1,
+      ssn1_11 == 1 ~ 2,
+      ssn1_11 == 2 ~ 3,
+      TRUE ~ NA_real_
+    ),
+    ucla1_3 = case_when(
+      ssn1_12 == 0 ~ 1,
+      ssn1_12 == 1 ~ 2,
+      ssn1_12 == 2 ~ 3,
+      TRUE ~ NA_real_
+    ),
+    # Calculate total score
+    ucla1_tot = ucla1_1 + ucla1_2 + ucla1_3,
+    # Categorize total score
+    ucla1_category = case_when(
+      ucla1_tot >= 3 & ucla1_tot <= 5 ~ "Not Lonely",
+      ucla1_tot >= 6 & ucla1_tot <= 9 ~ "Lonely",
+      TRUE ~ NA_character_  # Handle missing or invalid cases
+    )
+  )
+
+```
+Potential limitations
+Loss of Granularity:
+
+Treating loneliness as binary may oversimplify a complex, multidimensional experience. For instance:
+Someone scoring 5 might experience some degree of loneliness that isn't captured by the "Not Lonely" label.
+A score of 6 might not represent a dramatically different experience from a score of 5, yet the current categorization creates a sharp distinction.
+Implicit Assumptions:
+
+The cut-off between "Not Lonely" and "Lonely" assumes that scores 3–5 and 6–9 are qualitatively different, but this may not always hold.
+
+## Wellness score
+### Overall
+```{r}
+# Assign scores to each category for each variable
+medical_score <- case_when(
+  d23$medical1_burden_cat == "very_high_health_burden" ~ .5,
+  d23$medical1_burden_cat == "high_health_burden" ~ 1,
+  d23$medical1_burden_cat == "moderate_health_burden" ~ 3,
+  d23$medical1_burden_cat == "low_health_burden" ~ 4,
+  TRUE ~ NA_real_
+)
+
+moca_score <- case_when(
+  d23$moca1_category == "severe_impairment" ~ .5,
+  d23$moca1_category == "moderate_impairment" ~ 1,
+  d23$moca1_category == "mild_impairment" ~ 3,
+  d23$moca1_category == "normal" ~ 4,
+  TRUE ~ NA_real_
+)
+
+sleep_score <- case_when(
+  d23$gsq1_category == "poor" ~ 1,
+  d23$gsq1_category == "moderate" ~ 2.5,
+  d23$gsq1_category == "good" ~ 4,
+  TRUE ~ NA_real_
+)
+
+
+coping_score <- case_when(
+  d23$cope1_cat == "emerging_resilience" ~ 1,
+  d23$cope1_cat == "moderate_resilience" ~ 2.5,
+  d23$cope1_cat == "strong_resilience" ~ 4,
+  TRUE ~ NA_real_
+)
+
+screening_score <- case_when(
+  d23$screen1_cat == "not_engaged" ~ 1,
+  d23$screen1_cat == "partially_engaged" ~ 2.5,
+  d23$screen1_cat == "engaged" ~ 4,
+  TRUE ~ NA_real_
+)
+
+bmi_score <- case_when(
+  d23$bmi1_cat == "obesity" ~ 1,
+  d23$bmi1_cat == "overweight" ~ 2.5,
+  d23$bmi1_cat == "normal_weight" ~ 4,
+  d23$bmi1_cat == "underweight" ~ 2.5,
+  TRUE ~ NA_real_
+)
+
+whr_score <- case_when(
+  d23$whr1_cat == "high_risk" ~ 1,
+  d23$whr1_cat == "low_risk" ~ 4,
+  TRUE ~ NA_real_
+)
+
+# Calculate the wellness score by averaging the individual scores
+d23$wellness_score <- rowMeans(
+  cbind(
+    medical_score * 3, # Higher weight due to high relevance in research
+    moca_score * 3,    # Cognitive impairment strongly correlates with wellness
+    sleep_score * 2,   
+    coping_score * 1.5, 
+    screening_score * 1.5, 
+    bmi_score, 
+    whr_score 
+  ),
+  na.rm = TRUE
+)
+
+# Normalize the wellness score to a scale of 0 to 100
+d23$wellness_score <- (d23$wellness_score / max(d23$wellness_score, na.rm = TRUE)) * 100
+
+# Check the distribution of the wellness scores
+hist(d23$wellness_score, main = "Distribution of Wellness Scores", xlab = "Wellness Score")
+
+# View the updated data
+head(d23)
+
+```
+### Average (by age group)
+```{r}
+# Define age groups
+d23 <- d23 |>
+  mutate(
+    age_group = case_when(
+      age >= 60 & age <= 64 ~ "60-64",
+      age >= 65 & age <= 69 ~ "65-69",
+      age >= 70 & age <= 74 ~ "70-74",
+      age >= 75 & age <= 79 ~ "75-79",
+      age >= 80 & age <= 84 ~ "80-84",
+      age >= 85 & age <= 90 ~ "85-90",
+      TRUE ~ NA_character_
+    )
+  )
+
+# Calculate average wellness score by age group
+avg_scores_by_age <- d23 |>
+  group_by(age_group) |>
+  summarize(avg_score = mean(wellness_score, na.rm = TRUE))
+
+# Print the result
+print(avg_scores_by_age)
+
+# Merge the average score for each age group back to the original dataframe
+d23 <- d23 |>
+  left_join(avg_scores_by_age, by = "age_group")
+
+
+```
+## EDA
+### Medical conditions
+```{r}
+# Specify the exact columns you want to include and their meaningful labels
+column_names <- paste0("medical1_", sprintf("%02d", 1:17))
+condition_labels <- c(
+  "Hypertension", "Cholesterol", "Diabetes", "Heart Problems", "Pulmonary Problems",
+  "Liver/Gall Problems", "Kidney", "Endocrine", "Eye Problems", "Bone/Joint Problems",
+  "Urinary", "Stroke", "Cancer", "Depression", "Falls/Missed Falls", "Major Surgery", "Other"
+)
+names_map <- setNames(condition_labels, column_names)
+
+# Select and convert these columns to numeric
+selected_columns <- d23[, column_names]
+
+# Calculate the sum for each condition
+condition_sums <- colSums(selected_columns, na.rm = TRUE)
+
+# Create a data frame for plotting
+condition_data <- data.frame(
+  Condition = names_map[column_names],  # Apply meaningful labels
+  Count = condition_sums
+)
+
+# Calculate total participants (assuming one condition per participant across selected)
+total_participants <- nrow(d23) 
+
+# Add percentages
+condition_data$Percent <- (condition_data$Count / total_participants) * 100
+
+
+# Sort data from most to least prevalent
+condition_data <- condition_data[order(-condition_data$Percent),]
+
+# Plotting the data with ggplot2
+
+medical <- ggplot(condition_data, aes(x=reorder(Condition, Percent), y=Percent, fill=Condition)) +
+  geom_bar(stat="identity") +
+  theme_minimal() +
+  labs(title="Medical Conditions", x="Conditions", y="Poportion (%)") +
+  theme(
+    axis.text.x = element_text(angle = 0, hjust = 1),
+    legend.position = "none",
+    panel.grid.major = element_blank(),  # Remove major grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    axis.line = element_line(color = "black"),  # Keep axis lines
+    axis.ticks.x = element_line(color = "black"),  # Keep x-axis ticks
+    axis.ticks.y = element_blank(),  # Remove y-axis ticks
+    plot.title = element_text(hjust = 0.5)  # Center the title
+  ) +
+  coord_flip()  # Using coord_flip to make the chart horizontal
+medical
+
+
+ggsave("~/Documents/dshb_capstone/graphs/medical.pdf", plot = medical, width = 8, height = 6)
+```
+### Correlation analysis
+```{r}
+# subset the focal variabless
+d23 <- d23 |> 
+  mutate(iadl1_m = rowMeans(across(iadl1_01:iadl1_08), na.rm = TRUE))
+
+d23 <- d23 |> 
+  mutate(cope1_m = rowMeans(across(cope1_01:cope1_04), na.rm = TRUE))
+
+d23 <- d23 |> 
+  mutate(cogiw1_m = rowMeans(across(cog_iw1_01:cog_iw1_10), na.rm = TRUE))
+
+d23 <- d23 |> 
+  mutate(ucla1_m = rowMeans(across(ucla1_1: ucla1_3), na.rm = TRUE))
+
+d23 <- d23 |> 
+  mutate(gsq1_m = rowMeans(across(gsq1_01:gsq1_06), na.rm = TRUE))
+
+d23 <- d23 |> 
+  mutate(med1_m = rowMeans(across(medical1_01:medical1_17), na.rm = TRUE))
+
+subset = c('cope1_m', 'cogiw1_m', 'ucla1_m', 'med1_m', 'gsq1_m', 'moca1_tot', 'gds1_tot', 'sr_health1')
+
+d_subset <- d23 |>  select(subset) |>  drop_na(subset)
+
+cor_plot <- GGally::ggpairs(d_subset)
+cor_plot
+
+corr_matrix <- cor(d_subset, use = "pairwise.complete")
+# Define a named vector for renaming
+new_names <- c(
+  "cope1_m" = "Coping",
+  "cogiw1_m" = "Learning",
+  "ucla1_m" = "Loneliness",
+  "gsq1_m" = "Sleep",
+  "med1_m" = "Medical",
+  "moca1_tot" = "Cognition",
+  "gds1_tot" = "Depression",
+  "sr_health1" = "Self Health"
+)
+
+# Rename the rows and columns of the correlation matrix
+rownames(corr_matrix) <- new_names[rownames(corr_matrix)]
+colnames(corr_matrix) <- new_names[colnames(corr_matrix)]
+corrplot(corr_matrix, method = "pie", type = "upper", tl.srt = 45)
+
+sum(is.na(d_subset))
+
+```
+A correlation coefficient of 0.547 suggests a moderate positive relationship between cogiw1_m and cope1_m.
+As cognitive engagement (cogiw1_m) increases, coping ability (cope1_m) tends to increase as well, though not perfectly. This could imply that individuals who are more cognitively engaged (e.g., actively learning, problem-solving) may also have better coping strategies for dealing with stress or challenges. Future steps could include exploring whether cogiw1_m predicts cope1_m in a multivariate context.
+
+A negative correlation of r = -0.351 indicates a moderate-to-strong inverse relationship between sleep quality and depressive symptoms: Higher sleep quality (better sleep) is associated with lower depressive symptoms.
+Conversely, poorer sleep quality is associated with higher depressive symptoms. Poor sleep quality is a known risk factor for depression because it disrupts emotional regulation, stress resilience, and brain function.
+Conversely, depression often leads to insomnia, fragmented sleep, or hypersomnia, creating a vicious cycle. Interventions for sleep leading to improved sleep quality might be especially important for individuals with chronic or mild depression. Future steps could include investigating whether other factors (e.g., stress levels, physical health conditions) mediate the relationship between sleep quality and depressive symptoms.
+
+### More data analysis
+```{r}
+model <- lm(sr_health1 ~ med1_m + gds1_tot + cope1_m + cogiw1_m + gsq1_m, data = d23)
+summary(model)
+
+
+```
+
+```{r}
+write.csv(d23, file = "output_d23.csv", row.names = FALSE)
+```
