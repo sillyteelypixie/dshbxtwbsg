@@ -20,8 +20,8 @@ This project focuses on transforming the senior health care experience through d
 ### **Steps**
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/<your-username>/<your-repo>.git
-   cd <your-repo>
+   git clone https://github.com/sillyteelypixie/dshbxtwbsg.git
+   cd dshbxtwbsg
 
 2. **Set Up R Environment**:
    - Open `cleaning_and_eda.R` in your preferred R editor.
@@ -44,3 +44,12 @@ This project focuses on transforming the senior health care experience through d
 
 ## **Acknowledgements**
 This project was developed in collaboration with Total Well-Being SG (TWBSG), a nonprofit organization dedicated to improving the health and well-being of seniors. Special thanks to the TWBSG team for their insights and support throughout the project.
+
+## **Contributing**
+
+Collaborations are welcome! If you would like to contribute to improve this project, please fork the repository and submit a pull request with your proposed changes.
+
+For any questions or feedback, feel free to contact me at:
+
+- **Email**: kfteo@wisc.edu
+- **GitHub**: (https://github.com/sillyteelypixie)
