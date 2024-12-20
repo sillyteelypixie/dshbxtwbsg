@@ -23,5 +23,24 @@ This project focuses on transforming the senior health care experience through d
    git clone https://github.com/<your-username>/<your-repo>.git
    cd <your-repo>
 
+2. **Set Up R Environment**:
+   - Open `cleaning_and_eda.R` in your preferred R editor.
+   - Install the required R packages if not already installed.
+   - Run the script to clean and preprocess the data.
+
+3. **Set Up Python Environment**:
+   - Navigate to the repository directory.
+   - Install the required Python packages:
+     ```bash
+     pip install -r requirements.txt
+     ```
+   - Run the `generate_reports.py` script to create dynamic reports:
+     ```bash
+     python generate_reports.py
+     ```
+
+4. **View Reports**:
+   - Open the `sample_report_1.html` and `sample_report_2.html` files in any web browser to see examples of the personalized reports.
+
 ## **Acknowledgements**
 This project was developed in collaboration with Total Well-Being SG (TWBSG), a nonprofit organization dedicated to improving the health and well-being of seniors. Special thanks to the TWBSG team for their insights and support throughout the project.
