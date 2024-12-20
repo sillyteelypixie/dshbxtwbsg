@@ -1,0 +1,263 @@
+---
+title: "Demographics of Seniors in Singapore"
+author: "Krystle"
+date: "2024-11-05"
+output:
+  html_document: default
+  pdf_document: default
+---
+# 1. Introduction
+
+This project aims to explore Singapore's ageing demographics and analyze key demographic trends.
+
+## Install and Load R Packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych) 
+library(janitor)
+library(car)
+library(effects)
+library(CGPfunctions)
+library(effectsize)
+library(rockchalk) 
+library(data.table)
+library(corrplot)
+library(readxl)
+source('610710_functions.R')
+```
+
+# 2. Singapore's Resident Population
+On a whole, the population in Singapore is not just ageing, but ageing rapidly. It is projected that by 2030, there would be almost 1 in 4 Singaporeans aged 65 years and above. Part I of the data visualization aims to reveal insights into the demographic structure of the Singapore population through a government census dataset that contains geospatial statistics from 2011 to 2020. The data used is from the 'Singapore Residents by Planning Area/ Subzone, Age Group, Sex and Type of Dwelling, June 2011-2020', published by the Department of Statistics, Singapore.
+
+```{r}
+d_new <- read_csv("respopagesextod2011to2020.csv")
+str(d_new)
+```
+## Plots {.tabset}
+
+### Scatter Plot of Population
+```{r}
+scatter <- d_new %>%
+  mutate('Time' = as.character(Time)) %>%
+  select(Time, Sex, Pop) %>%
+  group_by(Time, Sex) %>%
+  summarise(Total_Pop = sum(Pop))
+scatter
+
+ggplot(scatter, aes(x = Time, y = Total_Pop / 1000, color = Sex)) +
+  geom_point(position = "jitter", size = 3) +
+  labs(
+    title = "Singapore Resident Population, 2011-2020",
+    x = "Year",
+    y = "Population (in 000s)",
+    ) +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_color_manual(values = c("#d23f67", "#505050")) +
+  theme(plot.caption = element_text(hjust = 1, face = "italic"))
+```
+### Population Pyramid
+```{r}
+pyramid <- d_new %>%
+  mutate('Time' = as.character(Time)) %>%
+  filter(Time=="2020") %>%
+  select(AG, Sex, Pop) %>%
+  group_by(AG, Sex) %>%
+  summarise(Total_Pop = sum(Pop)) %>%
+  mutate(AG =  factor(AG, levels = c("0_to_4", "5_to_9", "10_to_14", "15_to_19", "20_to_24","25_to_29", "30_to_34", "35_to_39", "40_to_44", "45_to_49", "50_to_54", "55_to_59", "60_to_64", "65_to_69", "70_to_74", "75_to_79", "80_to_84", "85_to_89", "90_and_over"))) %>%
+  arrange(AG)
+
+pyramid$Total_Pop <- with(pyramid, ifelse(pyramid$Sex =="Males", -Total_Pop/1000, Total_Pop/1000))
+
+pyramid_2020 <- ggplot(pyramid,aes(x=AG, y=Total_Pop, fill=Sex)) + geom_bar(stat="identity") + scale_y_continuous(labels = abs, limits=max(pyramid$Total_Pop) * c(-1,1) * 1.1) + scale_fill_manual(values=as.vector(c("#d23f67","#505050"))) + coord_flip() + labs(title="Singapore's Age-Sex Pyramid, 2020", x="Age Group", y="Population (in 000s)") + theme_minimal() + 
+  theme( 
+  panel.grid.major = element_blank(), 
+  panel.grid.minor = element_blank(),
+  plot.caption = element_text(hjust = 1, face = "italic"),
+  plot.title = element_text(hjust = 0.5, size=16))+
+  geom_text(aes(label = abs(Total_Pop), hjust=ifelse(test = pyramid$Sex == "Males",  yes = 1.1, no = -0.1)))
+
+pyramid_2020
+print(pyramid_2020)
+
+ggsave("pyramid_2020.pdf", plot = pyramid_2020, width = 8, height = 6)
+```
+
+This is a population pyramid for age cohort in year 2020. Narrow base reflects lower percentage of younger people, indicating declining birth rates, with each succeeding age group getting smaller than the previous one.
+
+### Group by Age and Region
+Here, visualization was done at the regional level. Each of the planning area was mapped onto their respective region. The required mapping information was obtained from https://en.wikipedia.org/wiki/Planning_Areas_of_Singapore. Data was extracted into a separate csv file and merged into the current working dataset.
+```{r}
+d <- read_csv("region_mapping.csv")
+merged_df <- merge(d_new, d[, c("PA", "region")], by = "PA", all.x = TRUE)
+merged_df <- clean_names(merged_df, case = "snake")
+```
+Similarly, the age groups were aggregated into the following three categories: Young, Economically Active and Aged.
+```{r}
+groups <- merged_df %>%
+  mutate('time' = as.character(time)) %>%
+  mutate(ag = factor(ag, levels = c("0_to_4", "5_to_9", "10_to_14", "15_to_19", "20_to_24", "25_to_29", "30_to_34", "35_to_39", "40_to_44", "45_to_49", "50_to_54", "55_to_59", "60_to_64", "65_to_69", "70_to_74", "75_to_79", "80_to_84", "85_to_89", "90_and_over"))) %>%
+  mutate(age_group = ifelse(ag %in% c("0_to_4", "5_to_9", "10_to_14", "15_to_19", "20_to_24"), "Young",
+                             ifelse(ag %in% c("65_to_69", "70_to_74", "75_to_79", "80_to_84", "85_to_89", "90_and_over"), "Aged", "Economically Active"))) %>%
+  select(time, age_group, pop, region) %>%
+  group_by(time, age_group, region) %>%
+  summarise(total_pop = sum(pop)) %>%
+  arrange(age_group)
+
+```
+
+```{r}
+groups$time <- as.numeric(groups$time)
+
+region_age <- ggplot(groups, aes(x=time, y=total_pop/1000, color=age_group,shape=age_group))+geom_point()+geom_smooth(method=lm, size=0.5)+facet_grid(~ region)+
+  scale_color_manual(values=c('#999999','#E69F00', '#56B4E9'))+
+  scale_size_manual(values=c(2,3,4))+theme_classic()+labs(title="Singapore Resident Population by Age Group, 2011-2020",x="Year", y="Population (in 000's)")+theme( 
+  plot.caption = element_text(hjust = 1, face = "italic"),
+  plot.title = element_text(hjust = 0.5, size=12))+
+  scale_x_continuous(breaks = seq(2011, 2020, by = 3)) + 
+  theme(axis.text.x = element_text(size = 5))
+
+region_age
+
+ggsave("region_age.pdf", plot = region_age, width = 8, height = 6)
+```
+
+Over here, a line graph is used to show the general trend in resident population from 2011 to 2020. As illustrated, the proportion of aged group in Singapore has clearly been increasing since 2011, out of which the Central region has the highest number of elderly. By contrast, the young population has been declining in all regions except in the North East. Such a data visualization can help policymakers or urban planners better take into consideration the needs of the particular demographic within each planning area. They can then look into the area and examine if the elder-care facilities services/amenities there are adequate to meet the needs of an older population.
+
+### Interactive Plot (Heatmap)
+```{r}
+yr2020 <- d_new %>% 
+  filter(Time == 2020) %>% 
+  mutate(age_group = gsub("5_to_9", "05_to_9", AG)) 
+
+head(yr2020)
+```
+
+```{r}
+library(heatmaply)
+
+x <- yr2020$PA
+y <- yr2020$AG
+z <- yr2020$Pop
+z_new = aggregate(z, by=list(x), FUN=sum)
+data_2020new<-yr2020[-c(2, 4,5, 7, 8) ] #keep PA, age group and pop
+
+x <- data_2020new$PA
+y <- data_2020new$AG
+z <- data_2020new$Pop
+z_new = aggregate(z, by=list(x,y), FUN=sum)
+
+df_2<-z_new
+
+names(df_2)<-c("Area","AGroup","Popul")
+names(df_2)
+
+df2 <- df_2 %>%
+  pivot_wider(names_from = AGroup, values_from = Popul)
+
+row.names(df2) <- df2$Area
+
+matrix <- data.matrix(df2)
+
+heatmaply(matrix,
+          Colv = NA,
+          seriate = "none",
+          k_row = 6,
+          colors = colorRampPalette(c("white", "blue"))(20),  # Custom color palette with higher contrast
+          margins = c(NA, 200, 60, NA),
+          fontsize_row = 5,
+          fontsize_col = 5,
+          main = "Breakdown of Population by Area",
+          xlab = "Age Group",
+          ylab = "Area")
+```
+
+In the heatmap, we can see the density of different age groups of the population in the planning areas. Sengkang, and Punggol (Northeast region) are densely populated with young and active people while Bedok (East) has one of the highest density of elderly.
+
+### Interactive Plot (Bubble Plot)
+Here, a tooltip has been added to to show details on the size of the population and the respective proportions of young and senior populations for each planning area when one hovers over the circles.
+```{r}
+library(plotly)
+
+subset <- subset(yr2020, select= -c(SZ, AG, Sex, Time)) %>%
+  group_by(PA, age_group) %>%
+  summarise(population = sum(Pop))
+subset <- data.frame(subset)
+merged_subset <- merge(subset, d[, c("PA", "region")], by = "PA", all.x = TRUE)
+
+agpop_mutated <- merged_subset %>%
+  spread(age_group, population) %>%
+  mutate(YOUNG = rowSums(.[3:8]))%>%
+  mutate(ACTIVE = rowSums(.[9:15]))  %>%
+  mutate(OLD = rowSums(.[16:21])) %>%
+  mutate(TOTAL = rowSums(.[22:24])) %>%
+  mutate(total_thou = round(TOTAL/1000,1)) %>% 
+  filter(TOTAL > 0) %>% 
+  mutate(percent_young = YOUNG/TOTAL*100) %>%
+  mutate(percent_active = ACTIVE/TOTAL*100) %>%
+  mutate(percent_old = OLD/TOTAL*100)
+
+agpop_mutated_df <- data.frame(agpop_mutated)
+temp <- agpop_mutated_df %>% 
+  mutate(
+    annotation = case_when(
+      percent_young > 25 & total_thou > 10 ~ "yes",
+      percent_old > 20 & total_thou > 10 ~ "yes"
+    )
+) %>% 
+arrange(desc(total_thou)) 
+
+x_range <- range(temp$percent_young, na.rm = TRUE)
+y_range <- range(temp$percent_old, na.rm = TRUE)
+
+P3 <- plot_ly(
+  data = temp,
+  x = ~percent_young, y = ~percent_old,
+  color = ~region, 
+  type = "scatter",
+  mode = "markers", 
+  size = ~TOTAL,
+  marker = list(
+    symbol = 'circle', 
+    sizemode = 'diameter', 
+    sizeref = 2,
+    line = list(width = 2, color = '#FFFFFF')
+  ),
+  text = ~paste(
+    'Planning Area:', PA,
+    '<br>Resident Population:', TOTAL,
+    '<br>% Young:', round(percent_young, 1),
+    '<br>% Old:', round(percent_old, 1)
+  )
+) %>%
+layout(
+  title = "Percentage of Seniors (above 65 years old) vs Young (between 0-19 years old) in 2020",
+  xaxis = list(
+    title = '% aged 0-19 years',
+    gridcolor = 'rgb(243, 243, 243)',
+    range = c(10, 40),
+    ticklen = 5,
+    gridwidth = 0.5
+  ),
+  yaxis = list(
+    title = '% aged 65 years and above',
+    gridcolor = 'rgb(243, 243, 243)',
+    range = c(0, 30),
+    ticklen = 5,
+    gridwidth = 0.5
+  ),
+  margin = list(l = 50, r = 50, b = 50, t = 50)
+)
+
+P3
+```
+
+The ageing population paints a grim reality which will lead to rising healthcare costs burdening the economy, societal fractures from competing needs across different demographic groups, etc. To avoid going into this decline, there has to be a shift towards preventive care to reduce disease burden for Singaporeans. 
+
+So, the bigger question we are hoping to answer here is: how can we continue to look after and engage our seniors, so that they can remain active and healthy, and live out the full span of their lives with purpose and dignity?
+
+

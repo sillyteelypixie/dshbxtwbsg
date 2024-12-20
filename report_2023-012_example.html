@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Health Assessment Report</title>
+    <style>
+        @page {
+            size: A4;
+            /* Defines the page size for the PDF */
+            margin: 10mm;
+            /* Sets margins around the page content */
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            width: 100%;
+            height: 100%;
+            padding: 10mm;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #333;
+            margin-top: 30px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        /* h2 { color: #2F4F4F; margin-top: 30px; } */
+        /* h3 { margin-top: 20px; } */
+        .score-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 20px 0;
+            width: 600px;
+        }
+
+        .circle-container {
+            display: flex;
+            justify-content: center;
+            gap: 2 px;
+            margin-top: auto;
+        }
+
+        .score-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin: 0 20px;
+        }
+
+        .score-circle-last {
+            border: 3px solid #0087bf;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            align-items: left;
+            font-size: 36px;
+            font-weight: bold;
+            color: #0087bf;
+            text-align: center;
+            line-height: 70px;
+            /* Same as height */
+            /* vertical-align: middle; */
+        }
+
+        .score-circle-overall {
+            border: 5px solid #0087bf;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            align-items: center;
+            font-size: 48px;
+            font-weight: bold;
+            color: #000000;
+            /* text-align: center; */
+            line-height: 120px;
+            /* Same as height */
+            /* vertical-align: middle; */
+        }
+
+        .score-circle-average {
+            /* border: 5px solid #1e90ff; */
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            justify-content: flex-end;
+            flex-wrap: nowrap;
+            align-items: flex-end;
+            font-size: 36px;
+            font-weight: bold;
+            color: #0087bf;
+            background-color: #cce7f2;
+            line-height: 70px;
+        }
+
+        .score-label {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 20px;
+            color: #333;
+            width: 130px;
+        }
+
+        .score-label-last {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #333;
+            width: 130px;
+        }
+
+        .score-label-average {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #333;
+            width: 130px;
+        }
+
+        ul {
+            margin: 20px 0;
+            padding-left: 20px;
+        }
+
+        .recommendation {
+            margin-bottom: 20px;
+        }
+
+        .high-risk {
+            color: red;
+            font-weight: bold;
+        }
+
+        .medium-risk {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .moderate-risk {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .low-risk {
+            color: green;
+            font-weight: bold;
+        }
+
+        .summary-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-top: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #ccc;
+            /* Adds the horizontal line at the bottom */
+        }
+
+        .description {
+            flex: 3;
+            /* Takes up more space for the text on the left */
+            padding-right: 20px;
+            /* Adds space between the description and the divider */
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .improvement {
+            flex: 1;
+            /* Takes up less space for the list on the right */
+            border-left: 1px solid #ccc;
+            /* Vertical divider between description and improvement */
+            padding-left: 20px;
+            /* Space after the divider */
+            font-size: 16px;
+            color: #333;
+               
+        }
+
+        .improvement h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .improvement li.high-risk {
+            color: #000 !important;
+        }
+
+        .improvement ul li {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: inline-block;
+            font-weight: bold;
+        }
+
+        ul {
+            list-style-type: none;
+            /* Adds bullet points */
+            padding-left: 20px;
+            /* Indents the list */
+            margin: 0;
+        }
+
+        @media print {
+            .page-break {
+                page-break-before: always;
+                page-break-after: always;
+                break-before: always;
+                break-after: always;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- <h1>Well-being Report for Participant 2023-012</h1> -->
+    <div class="header">
+        <h1>Health Assessment Summary</h1>
+        <p><strong>Last completed on 10/16/2024</strong></p>
+    </div>
+
+    <!-- Display Wellness Score and Average Score -->
+    <div class="circle-container">
+        <div class="score-container">
+            <!-- Last Score -->
+            <div class="score-item">
+                <div class="score-circle-last">80</div>
+                <div class="score-label-last">Your last score on 04/16/2024</div>
+            </div>
+            <!-- Wellness Score -->
+            <div class="score-item">
+                <div class="score-circle-overall">71</div>
+                <div class="score-label">Wellness Score</div>
+            </div>
+            <!-- Average Score -->
+            <div class="score-item">
+                <div class="score-circle-average">81</div>
+                <div class="score-label-average">Average score for persons your age</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="summary-container">
+        <!-- Description Section -->
+        <div class="description">
+            <p>KRYSTLE, based on your answers, your calculated Health Assessment score is 89. The Health Assessment
+                Score is a wellness score on a 100-point scale, based on the answers to the questions in the health risk
+                assessment. The score represents your health status in the short-term future. A higher number predicts a
+                better overall health status.</p>
+        </div>
+
+        <!-- Top Items for Improvement -->
+        <div class="improvement">
+            <h2>Top Items for Immediate Improvement</h2>
+            <ul>
+                
+                <li class="high-risk">⚠ Managing Medical Conditions</li>
+                
+                
+                <li class="high-risk">⚠ Health Screenings</li>
+                                    
+                
+            </ul>
+        </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- Detailed Risk Report -->
+    <h2>Detailed Risk Report with Recommendations</h2>
+    <p class="description">
+        Below are specific recommendations based on your responses. These suggestions are designed to support your
+        health and well-being.
+    </p>
+    
+
+    <!-- Loop through each sorted domain and display recommendations -->
+    
+    
+    
+    
+
+    
+    <div class="recommendation">
+        <h3 class="medium-risk">Medical Conditions</h3>
+        <p><strong>Status:</strong> Challenges Present</p>
+        <p><strong>Recommendation:</strong> Focus on improving your diet, exercise, and medication adherence. Regular check-ups can prevent complications.</p>
+        <p><em>By making gradual lifestyle adjustments, you can achieve better health outcomes.</em></p>
+
+        <!-- Special case: Display individual screening items under Screening Engagement -->
+        
+    </div>
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+
+    
+    <div class="recommendation">
+        <h3 class="medium-risk">Health Screenings</h3>
+        <p><strong>Status:</strong> Take the Next Step</p>
+        <p><strong>Recommendation:</strong> Make a habit of staying on top of your health screenings.</p>
+        <p><em>Proactive health management can prevent long-term complications.</em></p>
+
+        <!-- Special case: Display individual screening items under Screening Engagement -->
+        
+        <h4>Health Screenings:</h4>
+        <table>
+            <tr>
+                <th style="text-align: left;">Screening Item</th>
+                <th>Status</th>
+            </tr>
+            
+            
+    <tr>
+        <td>Blood Pressure</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Cholesterol</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Glucose</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>BMI</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Vision</td>
+        <td>
+            
+            <span class="high-risk">Needs Attention</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Hearing</td>
+        <td>
+            
+            <span class="high-risk">Needs Attention</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Dental Health</td>
+        <td>
+            
+            <span class="high-risk">Needs Attention</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Colorectal Cancer</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Influenza/Flu</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Pneumococcal</td>
+        <td>
+            
+            <span class="high-risk">Needs Attention</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Breast Cancer</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    <tr>
+        <td>Cervical Cancer</td>
+        <td>
+            
+            <span class="low-risk">Up-to-date</span>
+            
+        </td>
+    </tr>
+    
+    
+            
+    
+            
+    
+            
+    
+        </table>
+        
+    </div>
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+
+    
+    <div class="recommendation">
+        <h3 class="low-risk">Sleep Quality</h3>
+        <p><strong>Status:</strong> Well-Managed</p>
+        <p><strong>Recommendation:</strong> Keep up the great work! Your sleep patterns are excellent.</p>
+        <p><em>Consistency in sleep routines ensures sustained health benefits.</em></p>
+
+        <!-- Special case: Display individual screening items under Screening Engagement -->
+        
+    </div>
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+
+    
+    
+
+
+    <!-- Health Assessment Summary -->
+    <h2>Overall Health Assessment Summary</h2>
+    <ul>
+        <li><strong>Sleep Quality:</strong> good</li>
+        <li><strong>Cognitive Well-Being:</strong> normal</li>
+        <li><strong>Emotional Coping:</strong> emerging_resilience</li>
+        <li><strong>Health Burden:</strong> high_health_burden</li>
+        <li><strong>Screening Engagement:</strong> partially_engaged</li>
+    </ul>
+</body>
+
+</html>
